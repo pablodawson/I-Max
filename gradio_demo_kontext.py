@@ -72,7 +72,8 @@ demo = gr.Interface(
     fn=generate_image,
     inputs=[
         gr.Textbox(label="Prompt", value="Create a bold and dynamic text design for the word \"I-MAX\" with each letter filled with vibrant and high-fashion photography scenes. Incorporate a mix of models striking elegant poses, cameras flashing, and creative studio setups. Highlight the diversity of the modeling world with a variety of model expressions, runway moments, and behind-the-scenes shots. Use sleek, modern colors that reflect professionalism, creativity, and innovation, integrating camera lenses, softboxes, and fashion accessories within the letters to emphasize the photography and modeling theme. The overall design should feel high-end, artistic, and tailored for a professional audience."),
-        gr.Number(label="Width", value=512, step=1, min=256, max=2048),
+        gr.Slider(label="Width", value=512, step=1, minimum=256, maximum=2048),
+        gr.Slider(label="Height", value=512, step=1, minimum=256, maximum=2048),
         gr.Image(label="Edit Image", type="pil"),
         gr.Number(label="Seed", value=25),
         gr.Slider(label="NTK Factor", minimum=1, maximum=15, step=1, value=10),

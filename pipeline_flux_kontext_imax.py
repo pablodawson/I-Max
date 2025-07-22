@@ -1129,6 +1129,13 @@ class FluxKontextPipeline(
                 _, image_width, image_height = min(
                     (abs(aspect_ratio - w / h), w, h) for w, h in PREFERRED_KONTEXT_RESOLUTIONS
                 )
+
+                # TODO: Check if this is needed
+                # Upscaling the condition as well
+                image_width = image_width * 2
+                image_height = image_height * 2
+                ####
+            
             image_width = image_width // multiple_of * multiple_of
             image_height = image_height // multiple_of * multiple_of
             image = self.image_processor.resize(image, image_height, image_width)
@@ -1151,7 +1158,7 @@ class FluxKontextPipeline(
             latent_ids = torch.cat([latent_ids, image_ids], dim=0)  # dim 0 is sequence dimension
 
         # 5. Prepare timesteps
-        sigmas = np.linspace(1.0, 1 / num_inference_steps1, num_inference_steps1)
+        sigmas = np.linspace(1.0, 1 / num_inference_steps, num_inference_steps) if sigmas is None else sigmas
         image_seq_len = latents.shape[1]
         self.scheduler.config.shift = time_shift_1
         mu = calculate_shift(
