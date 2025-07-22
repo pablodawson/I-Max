@@ -31,7 +31,8 @@ from transformers import (
 
 from diffusers.image_processor import PipelineImageInput, VaeImageProcessor
 from diffusers.loaders import FluxIPAdapterMixin, FluxLoraLoaderMixin, FromSingleFileMixin, TextualInversionLoaderMixin
-from diffusers.models import AutoencoderKL, FluxTransformer2DModel
+from diffusers.models import AutoencoderKL
+from transformer_flux_new import FluxTransformer2DModel
 from diffusers.schedulers import FlowMatchEulerDiscreteScheduler
 from diffusers.utils import (
     USE_PEFT_BACKEND,

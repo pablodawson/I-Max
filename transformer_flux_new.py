@@ -25,10 +25,12 @@ from diffusers.models.attention import FeedForward
 from diffusers.models.attention_processor import (
     Attention,
     AttentionProcessor,
-    FluxAttnProcessor2_0,
     FluxAttnProcessor2_0_NPU,
     FusedFluxAttnProcessor2_0,
 )
+
+from attention_processor_new import FluxAttnProcessor2_0
+
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers.models.normalization import AdaLayerNormContinuous, AdaLayerNormZero, AdaLayerNormZeroSingle
 from diffusers.utils import USE_PEFT_BACKEND, deprecate, logging, scale_lora_layers, unscale_lora_layers
