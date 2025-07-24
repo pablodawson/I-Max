@@ -1131,8 +1131,8 @@ class FluxKontextPipeline(
                 )
 
             # Upsampled and native size images
-            image_width_up = image_width * scale_factor
-            image_height_up = image_height * scale_factor
+            image_width_up = int(image_width * scale_factor)
+            image_height_up = int(image_height * scale_factor)
             image_width_up = image_width_up // multiple_of * multiple_of
             image_height_up = image_height_up // multiple_of * multiple_of
 
@@ -1300,14 +1300,14 @@ class FluxKontextPipeline(
                     xm.mark_step()
 
         # 6.3 Upsampling ###########################################################################
-        
         latents = self._unpack_latents(latents, height // int(scale_factor + 0.5), width // int(scale_factor + 0.5), self.vae_scale_factor)
         latents = (latents / self.vae.config.scaling_factor) + self.vae.config.shift_factor
         image_guidance = self.vae.tiled_decode(latents, return_dict=False)[0]
         image_guidance = torch.nn.functional.interpolate(image_guidance, size=(height, width), mode='bicubic')
         latents = self.vae.tiled_encode(image_guidance).latent_dist.sample()
         latents = (latents - self.vae.config.shift_factor) * self.vae.config.scaling_factor
-        latents_guidance = self._pack_latents(latents, batch_size, num_channels_latents, height // self.vae_scale_factor * 2, width // self.vae_scale_factor * 2)
+        latent_height, latent_width = latents.shape[2:]
+        latents_guidance = self._pack_latents(latents, batch_size, num_channels_latents, latent_height, latent_width)
 
         # 6.3 Re-setting ###########################################################################
         latents, image_latents, latent_image_ids_new, image_ids = self.prepare_latents(
@@ -1319,7 +1319,7 @@ class FluxKontextPipeline(
             prompt_embeds.dtype,
             device,
             generator,
-            latents,
+            latents=None,
         )
         
         # Update latent_ids for the new resolution
@@ -1357,11 +1357,11 @@ class FluxKontextPipeline(
                     if i % 2 == 0:
                         latents = self._unpack_latents(latents, height, width, self.vae_scale_factor)
                         latents = F.pad(latents, pad=(1, 1, 1, 1), mode='constant', value=0)
-                        latents = self._pack_latents(latents, batch_size, num_channels_latents, height // self.vae_scale_factor * 2 + 2, width // self.vae_scale_factor * 2 + 2)
+                        latents = self._pack_latents(latents, batch_size, num_channels_latents, latent_height + 2, latent_width + 2)
                         latents_guidance = self._unpack_latents(latents_guidance, height, width, self.vae_scale_factor)
                         latents_guidance = F.pad(latents_guidance, pad=(1, 1, 1, 1), mode='constant', value=0)
-                        latents_guidance = self._pack_latents(latents_guidance, batch_size, num_channels_latents, height // self.vae_scale_factor * 2 + 2, width // self.vae_scale_factor * 2 + 2)
-                        latent_ids = self._prepare_latent_image_ids(batch_size, (height // self.vae_scale_factor * 2 + 2) // 2, (width // self.vae_scale_factor * 2 + 2) // 2, device, latents.dtype)
+                        latents_guidance = self._pack_latents(latents_guidance, batch_size, num_channels_latents, latent_height + 2, latent_width + 2)
+                        latent_ids = self._prepare_latent_image_ids(batch_size, (latent_height + 2) // 2, (latent_width + 2) // 2, device, latents.dtype)
                         height = height + 1 * self.vae_scale_factor
                         width = width + 1 * self.vae_scale_factor
                     else:
@@ -1369,11 +1369,13 @@ class FluxKontextPipeline(
                         width = width - 1 * self.vae_scale_factor
                         latents = self._unpack_latents(latents, height + 1 * self.vae_scale_factor, width + 1 * self.vae_scale_factor, self.vae_scale_factor)
                         latents = latents[:, :, 1:-1, 1:-1]
-                        latents = self._pack_latents(latents, batch_size, num_channels_latents, height // self.vae_scale_factor * 2, width // self.vae_scale_factor * 2)
+                        latents = self._pack_latents(latents, batch_size, num_channels_latents, latent_height, latent_width)
                         latents_guidance = self._unpack_latents(latents_guidance, height + 1 * self.vae_scale_factor, width + 1 * self.vae_scale_factor, self.vae_scale_factor)
                         latents_guidance = latents_guidance[:, :, 1:-1, 1:-1]
-                        latents_guidance = self._pack_latents(latents_guidance, batch_size, num_channels_latents, height // self.vae_scale_factor * 2, width // self.vae_scale_factor * 2)
-                        latent_ids = self._prepare_latent_image_ids(batch_size, height // self.vae_scale_factor * 2 // 2, width // self.vae_scale_factor * 2 // 2, device, latents.dtype)
+                        latents_guidance = self._pack_latents(latents_guidance, batch_size, num_channels_latents, latent_height, latent_width)
+                        latent_ids = self._prepare_latent_image_ids(batch_size, latent_height// 2, latent_width//2, device, latents.dtype)
+
+                    ids = torch.cat([latent_ids, image_ids], dim=0) if image_ids is not None else latent_ids
 
                 self._current_timestep = t
                 if image_embeds is not None:
@@ -1398,7 +1400,7 @@ class FluxKontextPipeline(
                     pooled_projections=pooled_prompt_embeds,
                     encoder_hidden_states=prompt_embeds,
                     txt_ids=text_ids,
-                    img_ids=latent_ids,
+                    img_ids=ids,
                     joint_attention_kwargs=self.joint_attention_kwargs,
                     return_dict=False,
                     ntk_factor=ntk_factor,
@@ -1417,7 +1419,7 @@ class FluxKontextPipeline(
                         pooled_projections=negative_pooled_prompt_embeds,
                         encoder_hidden_states=negative_prompt_embeds,
                         txt_ids=negative_text_ids,
-                        img_ids=latent_ids,
+                        img_ids=ids,
                         joint_attention_kwargs=self.joint_attention_kwargs,
                         return_dict=False,
                         ntk_factor=ntk_factor,
@@ -1432,12 +1434,12 @@ class FluxKontextPipeline(
                 
                 cosine_factor = 0.5 * (1 + torch.cos(torch.pi * (i / torch.Tensor([num_inference_steps2])))).to(latents.device, latents.dtype)
                 
-                fp_v_ = self._unpack_latents(fp_v, height, width, self.vae_scale_factor)
-                noise_pred_ = self._unpack_latents(noise_pred, height, width, self.vae_scale_factor)
+                fp_v_ = self._unpack_latents(fp_v, latent_height, latent_width, self.vae_scale_factor)
+                noise_pred_ = self._unpack_latents(noise_pred, latent_height, latent_width, self.vae_scale_factor)
                 fp_v_low = split_frequency_components_dwt(fp_v_, level=dwt_level)
                 noise_pred_low = split_frequency_components_dwt(noise_pred_, level=dwt_level)
-                fp_v_low = self._pack_latents(fp_v_low, batch_size, num_channels_latents, height // self.vae_scale_factor * 2, width // self.vae_scale_factor * 2)
-                noise_pred_low = self._pack_latents(noise_pred_low, batch_size, num_channels_latents, height // self.vae_scale_factor * 2, width // self.vae_scale_factor * 2)
+                fp_v_low = self._pack_latents(fp_v_low, batch_size, num_channels_latents, latent_height, latent_width)
+                noise_pred_low = self._pack_latents(noise_pred_low, batch_size, num_channels_latents, latent_height, latent_width)
                 
                 if guidance_schedule == "disable":
                     noise_pred = noise_pred

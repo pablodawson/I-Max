@@ -462,14 +462,14 @@ class FluxTransformer2DModel(
 
         ####
         if text_duplication:
-            scale_factor_h = max(1, int((img_ids[:, :, 1].max() + 1) // 64))
-            scale_factor_w = max(1, int((img_ids[:, :, 2].max() + 1) // 64))
+            scale_factor_h = max(1, int((img_ids[:, 1].max() + 1) // 64))
+            scale_factor_w = max(1, int((img_ids[:, 2].max() + 1) // 64))
             txt_ids_list = []
             for i in range(scale_factor_h):
                 for j in range(scale_factor_w):
                     txt_ids_ = txt_ids.clone()
-                    txt_ids_[:, :, 1] = txt_ids[:, :, 1] + i * 64
-                    txt_ids_[:, :, 2] = txt_ids[:, :, 2] + j * 64
+                    txt_ids_[:, 1] = txt_ids[:, 1] + i * 64
+                    txt_ids_[:, 2] = txt_ids[:, 2] + j * 64
                     txt_ids_list.append(txt_ids_)
             txt_ids = torch.cat(txt_ids_list, 1)
             encoder_hidden_states = torch.cat([encoder_hidden_states] * scale_factor_h * scale_factor_w, 1)
