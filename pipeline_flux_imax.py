@@ -619,6 +619,7 @@ class FluxPipeline(DiffusionPipeline, FluxLoraLoaderMixin):
             lora_scale=lora_scale,
         )
 
+        # Prepara latents con scale factor (resolución nativa)
         # 4. Prepare latent variables
         num_channels_latents = self.transformer.config.in_channels // 4
         latents, latent_image_ids = self.prepare_latents(
@@ -709,6 +710,8 @@ class FluxPipeline(DiffusionPipeline, FluxLoraLoaderMixin):
                     xm.mark_step()
 
         # 6.3 Upsampling ###########################################################################
+        # Latente a imagen -> Interpolar -> Volver a latente
+        # Estos latentes son el guidance para el resto
         latents = self._unpack_latents(latents, height // int(scale_factor + 0.5), width // int(scale_factor + 0.5), self.vae_scale_factor)
         latents = (latents / self.vae.config.scaling_factor) + self.vae.config.shift_factor
         image_guidance = self.vae.tiled_decode(latents, return_dict=False)[0]

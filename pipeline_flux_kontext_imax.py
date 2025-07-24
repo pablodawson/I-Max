@@ -1130,17 +1130,23 @@ class FluxKontextPipeline(
                     (abs(aspect_ratio - w / h), w, h) for w, h in PREFERRED_KONTEXT_RESOLUTIONS
                 )
 
-                # TODO: Check if this is needed
-                # Upscaling the condition as well
-                image_width = image_width * 2
-                image_height = image_height * 2
-                ####
-            
+            # Upsampled and native size images
+            image_width_up = image_width * scale_factor
+            image_height_up = image_height * scale_factor
+            image_width_up = image_width_up // multiple_of * multiple_of
+            image_height_up = image_height_up // multiple_of * multiple_of
+
+            image_up = self.image_processor.resize(image, image_height_up, image_width_up)
+            image_up = self.image_processor.preprocess(image, image_height_up, image_width_up)
+
             image_width = image_width // multiple_of * multiple_of
             image_height = image_height // multiple_of * multiple_of
+
             image = self.image_processor.resize(image, image_height, image_width)
             image = self.image_processor.preprocess(image, image_height, image_width)
 
+            
+        # native size inference
         # 4. Prepare latent variables
         num_channels_latents = self.transformer.config.in_channels // 4
         latents, image_latents, latent_ids, image_ids = self.prepare_latents(
@@ -1158,7 +1164,7 @@ class FluxKontextPipeline(
             latent_ids = torch.cat([latent_ids, image_ids], dim=0)  # dim 0 is sequence dimension
 
         # 5. Prepare timesteps
-        sigmas = np.linspace(1.0, 1 / num_inference_steps, num_inference_steps) if sigmas is None else sigmas
+        sigmas = np.linspace(1.0, 1 / num_inference_steps1, num_inference_steps1) if sigmas is None else sigmas
         image_seq_len = latents.shape[1]
         self.scheduler.config.shift = time_shift_1
         mu = calculate_shift(
@@ -1294,6 +1300,7 @@ class FluxKontextPipeline(
                     xm.mark_step()
 
         # 6.3 Upsampling ###########################################################################
+        
         latents = self._unpack_latents(latents, height // int(scale_factor + 0.5), width // int(scale_factor + 0.5), self.vae_scale_factor)
         latents = (latents / self.vae.config.scaling_factor) + self.vae.config.shift_factor
         image_guidance = self.vae.tiled_decode(latents, return_dict=False)[0]
@@ -1303,8 +1310,8 @@ class FluxKontextPipeline(
         latents_guidance = self._pack_latents(latents, batch_size, num_channels_latents, height // self.vae_scale_factor * 2, width // self.vae_scale_factor * 2)
 
         # 6.3 Re-setting ###########################################################################
-        latents, latent_image_ids_new = self.prepare_latents(
-            None,  # No image for the second phase
+        latents, image_latents, latent_image_ids_new, image_ids = self.prepare_latents(
+            image_up,
             batch_size * num_images_per_prompt,
             num_channels_latents,
             height,
@@ -1312,7 +1319,7 @@ class FluxKontextPipeline(
             prompt_embeds.dtype,
             device,
             generator,
-            latents=None,
+            latents,
         )
         
         # Update latent_ids for the new resolution
